@@ -1,15 +1,23 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const app = express();
 const { globalLimiter } = require('./middlewares/rateLimit.middleware');
 
 // ── Middlewares globales ──────────────────────────────────────
-app.use(cors());
+app.use(cors({
+  origin: [
+    'https://www.twlnetworks.org',
+    'https://twlnetworks.org',
+    'http://localhost:5173' // para desarrollo local
+  ],
+  credentials: true
+}));
 app.use(express.json());
-app.use(globalLimiter); // Aplica el límite global a todas las rutas
+app.use(globalLimiter);
 
-// ── Rutas ─────────────────────────────────────────────────────
+// ── Rutas API ─────────────────────────────────────────────────
 app.use('/api/auth',        require('./routes/auth.routes'));
 app.use('/api/programs',    require('./routes/programs.routes'));
 app.use('/api/chickboxing', require('./routes/chickboxing.routes'));
@@ -25,9 +33,16 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', project: 'TWL Networks API' });
 });
 
-// ── Manejo de rutas no encontradas ────────────────────────────
-app.use((req, res) => {
-  res.status(404).json({ error: 'Ruta no encontrada' });
+// ── Servir frontend estático (build de React) ─────────────────
+app.use(express.static(path.join(__dirname, '../public')));
+
+// ── Cualquier ruta que no sea /api → devolver index.html ──────
+// Esto permite que React Router maneje las rutas del cliente
+app.get('*', (req, res) => {
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'Ruta no encontrada' });
+  }
+  res.sendFile(path.join(__dirname, '../public', 'index.html'));
 });
 
 // ── Manejo global de errores ──────────────────────────────────

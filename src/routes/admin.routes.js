@@ -5,7 +5,7 @@ const {
   createSponsor, updateSponsor, deleteSponsor,
   createSocialLink, updateSocialLink, deleteSocialLink,
   createContent, updateContent, deleteContent,
-  getApplications,
+  getApplications, deleteApplication,
   updateBandMember
 } = require('../controllers/admin.controller');
 
@@ -35,6 +35,7 @@ router.delete('/content/:id',          deleteContent);
 
 // ── Postulaciones (solo lectura) ──────────────────────────────
 router.get('/applications',            getApplications);
+router.delete('/applications/:id',     deleteApplication);
 
 // ── Banda ─────────────────────────────────────────────────────
 router.put('/band/members/:id',        updateBandMember);

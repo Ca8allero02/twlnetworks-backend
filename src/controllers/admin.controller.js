@@ -254,9 +254,12 @@ const deleteContent = async (req, res) => {
 const getApplications = async (req, res) => {
   const { program_id } = req.query;
   try {
+    // Base query con datos del usuario y programa
     let query = `
-      SELECT a.id, a.created_at, u.name AS user_name, u.email AS user_email,
-             p.name AS program
+      SELECT 
+        a.id, a.created_at, a.program_id,
+        u.name AS user_name, u.email AS user_email,
+        p.name AS program
       FROM applications a
       JOIN users u ON a.user_id = u.id
       JOIN programs p ON a.program_id = p.id
@@ -268,11 +271,69 @@ const getApplications = async (req, res) => {
     }
     query += ' ORDER BY a.created_at DESC';
 
-    const [rows] = await db.query(query, params);
-    return res.json(rows);
+    const [applications] = await db.query(query, params);
+
+    // Para cada postulación, buscar el detalle según el programa
+    const result = await Promise.all(applications.map(async (app) => {
+      if (app.program_id === 1) {
+        // Chickboxing — buscar datos del pollo
+        const [chicken] = await db.query(
+          'SELECT name, backstory, description, image_url FROM chickboxing_chickens WHERE application_id = ?',
+          [app.id]
+        );
+        return { ...app, detail: chicken[0] || null }
+      } else if (app.program_id === 2) {
+        // Desempacados — buscar datos de la postulación
+        const [desempacados] = await db.query(
+          'SELECT full_name, email, social_links, motivation FROM desempacados_applications WHERE application_id = ?',
+          [app.id]
+        );
+        return { ...app, detail: desempacados[0] || null }
+      }
+      return { ...app, detail: null }
+    }))
+
+    return res.json(result);
   } catch (err) {
     console.error('Error en getApplications:', err);
     return res.status(500).json({ error: 'Error al obtener postulaciones' });
+  }
+};
+
+const deleteApplication = async (req, res) => {
+  const { id } = req.params;
+  const conn = await db.getConnection();
+  try {
+    await conn.beginTransaction();
+
+    // Obtener program_id para saber qué tabla de detalle borrar
+    const [rows] = await conn.query(
+      'SELECT program_id FROM applications WHERE id = ?', [id]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'Postulación no encontrada' });
+    }
+
+    const programId = rows[0].program_id;
+
+    // Borrar detalle según programa
+    if (programId === 1) {
+      await conn.query('DELETE FROM chickboxing_chickens WHERE application_id = ?', [id]);
+    } else if (programId === 2) {
+      await conn.query('DELETE FROM desempacados_applications WHERE application_id = ?', [id]);
+    }
+
+    // Borrar la postulación base
+    await conn.query('DELETE FROM applications WHERE id = ?', [id]);
+
+    await conn.commit();
+    return res.json({ message: 'Postulación eliminada' });
+  } catch (err) {
+    await conn.rollback();
+    console.error('Error en deleteApplication:', err);
+    return res.status(500).json({ error: 'Error al eliminar postulación' });
+  } finally {
+    conn.release();
   }
 };
 
@@ -296,16 +357,10 @@ const updateBandMember = async (req, res) => {
 };
 
 module.exports = {
-  // Campeones
   createChampion, updateChampion, updateStats, deleteChampion,
-  // Sponsors
   createSponsor, updateSponsor, deleteSponsor,
-  // Social links
   createSocialLink, updateSocialLink, deleteSocialLink,
-  // Contenido
   createContent, updateContent, deleteContent,
-  // Postulaciones
-  getApplications,
-  // Banda
+  getApplications, deleteApplication,
   updateBandMember
 };
