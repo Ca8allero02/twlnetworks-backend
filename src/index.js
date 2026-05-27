@@ -3,11 +3,13 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const app = express();
+app.set('trust proxy', 1); // Confiar en el proxy de Hostinger
 const { globalLimiter } = require('./middlewares/rateLimit.middleware');
 
 // ── Middlewares globales ──────────────────────────────────────
 app.use(cors({
   origin: [
+    'https://app.twlnetworks.org',
     'https://www.twlnetworks.org',
     'https://twlnetworks.org',
     'http://localhost:5173' // para desarrollo local
